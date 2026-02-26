@@ -1,40 +1,30 @@
 import streamlit as st
-from PIL import Image
 import datetime
 from collections import Counter
+from floor import render_floor
 
 st.set_page_config(page_title="SeatSense UW - College Library", layout="wide")
 
 st.title("SeatSense UW")
 st.subheader("College Library - Floor 2 Prototype")
 
-# Load floor map
-image = Image.open("floor2.png")
-st.image(image, caption="College Library - Floor 2", width="stretch")
-
-st.write("Report real-time seating availability by zone.")
-
-# Define zones
 zones = {
-    "Z1 - Silent Study Core": "Very quiet, focus-heavy area. Best for deep work, reading, and solo study.",
-    "Z2 - Scenic Lake View Window": "Natural light and calming lake views. Ideal for relaxed solo study sessions.",
-    "Z3 - Open Table Collaborative Center": "Moderate noise, open seating layout. Good for flexible study or casual collaboration.",
-    "Z4 - Computer & Media Center": "Desktop computers (Windows & macOS), docking stations, and equipment checkout nearby. Active study environment.",
-    "Z5 - Premium Scenic Media Studios (2252A/B)": "Smaller, quieter scenic space with premium lake views. Limited seating, high demand."
+    "Z1 - Silent Study Core": "Very quiet, focus-heavy area. Best for deep work.",
+    "Z2 - Scenic Lake View Window": "Natural light and calming lake views.",
+    "Z3 - Open Table Collaborative Center": "Moderate noise, flexible seating.",
+    "Z4 - Computer & Media Center": "Desktop computers and docking stations.",
+    "Z5 - Premium Scenic Media Studios (2252A/B)": "Smaller scenic media space."
 }
 
-# Initialize report storage
 if "zone_reports" not in st.session_state:
     st.session_state.zone_reports = {zone: [] for zone in zones.keys()}
 
-# Sidebar zone selector
 st.sidebar.header("Select Zone")
 selected_zone = st.sidebar.selectbox("Choose a zone:", list(zones.keys()))
 
 st.write("### Zone Description")
 st.write(zones[selected_zone])
 
-# Reporting buttons
 st.write("### Report Seat Availability")
 
 col1, col2, col3 = st.columns(3)
@@ -59,45 +49,44 @@ with col3:
 
 st.write("### Current Status")
 
+overlay_color = None
+
 reports = st.session_state.zone_reports[selected_zone]
 
-if len(reports) == 0:
-    st.info("No reports yet for this zone.")
-else:
-    # Only consider last 30 minutes
+if reports:
     now = datetime.datetime.now()
     recent_reports = [
         r for r in reports
         if (now - r["time"]).total_seconds() <= 1800
     ]
 
-    if len(recent_reports) == 0:
-        st.info("No recent reports in last 30 minutes.")
-    else:
+    if recent_reports:
         statuses = [r["status"] for r in recent_reports]
         counts = Counter(statuses)
         most_common = counts.most_common(1)[0][0]
         total = len(statuses)
 
-        plenty_n = counts.get("plenty", 0)
-        limited_n = counts.get("limited", 0)
-        full_n = counts.get("full", 0)
-
         confidence = round((counts[most_common] / total) * 100)
 
-        # Display aggregated status
         if most_common == "plenty":
             st.success("🟢 Plenty of seats available")
+            overlay_color = "rgba(0, 200, 0, 0.5)"
+
         elif most_common == "limited":
             st.warning("🟡 Limited seats available")
+            overlay_color = "rgba(255, 200, 0, 0.5)"
+
         else:
             st.error("🔴 Area is full")
+            overlay_color = "rgba(255, 0, 0, 0.5)"
 
-        st.write("### Recent Reports (last 30 min)")
+        st.caption(f"Confidence: {confidence}%")
 
-        c1, c2, c3 = st.columns(3)
-        c1.metric("🟢 Plenty", plenty_n)
-        c2.metric("🟡 Limited", limited_n)
-        c3.metric("🔴 Full", full_n)
+    else:
+        st.info("No recent reports in last 30 minutes.")
+else:
+    st.info("No reports yet for this zone.")
 
-        st.caption(f"Based on {total} report(s). Confidence: {confidence}%")
+st.write("### Floor Layout")
+
+render_floor(selected_zone, overlay_color)
